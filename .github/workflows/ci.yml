@@ -65,7 +65,7 @@ build-matrix:
             target/release/pwny-ci-cd*
             target/release/pwny-ci-cd.exe
 
-  create-release:
+create-release:
     needs: build-matrix
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
