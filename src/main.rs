@@ -12,7 +12,7 @@ mod tests {
 
     #[test]
     fn add_works() {
-        assert_eq!(add(2, 2), 5);
+        assert_eq!(add(2, 2), 4);
     }
 }
 
