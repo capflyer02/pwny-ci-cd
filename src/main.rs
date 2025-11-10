@@ -18,6 +18,8 @@ async fn root() -> &'static str {
 
 // Simple pure function just for CI tests.
 // You can replace this later with something "real".
+
+#[cfg(test)]
 fn add(a: i32, b: i32) -> i32 {
     a + b
 }
