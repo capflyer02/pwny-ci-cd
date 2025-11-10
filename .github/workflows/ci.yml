@@ -2,6 +2,7 @@ name: CI
 
 permissions:
   contents: write
+  packages: write
 
 on:
   push:
@@ -45,7 +46,6 @@ jobs:
         shell: bash
         run: |
           NAME="pwny-ci-cd"
-
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             SRC="target/release/${NAME}.exe"
             DEST="${NAME}-windows-x86_64.exe"
@@ -63,13 +63,11 @@ jobs:
           fi
 
           cp "$SRC" "$DEST"
-
           echo "dest=$DEST" >> $GITHUB_OUTPUT
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          # Each artifact has a unique name and contains exactly one file
           name: ${{ steps.prep.outputs.dest }}
           path: ${{ steps.prep.outputs.dest }}
 
@@ -85,16 +83,39 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: List downloaded files (debug)
-        run: ls -R artifacts
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/pwny-ci-cd-linux-x86_64
-            artifacts/pwny-ci-cd-macos-x86_64
-            artifacts/pwny-ci-cd-windows-x86_64.exe
+          files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-build-and-push:
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/pwny-ci-cd-web:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/pwny-ci-cd-web:latest
 

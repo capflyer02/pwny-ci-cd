@@ -25,12 +25,14 @@ RUN useradd -m appuser
 WORKDIR /app
 
 # Copy compiled binary from builder
-# CHANGE "pwny-ci-cd" below if your package/binary name is different
+# If your binary isn't named pwny-ci-cd, change this:
 COPY --from=builder /app/target/release/pwny-ci-cd /usr/local/bin/pwny-ci-cd
 
 USER appuser
 
-ENTRYPOINT ["/usr/local/bin/pwny-ci-cd"]
-
+# Expose the port the app listens on
 EXPOSE 8080
+
+# Run the web server
+ENTRYPOINT ["/usr/local/bin/pwny-ci-cd"]
 
