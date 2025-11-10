@@ -189,14 +189,14 @@ struct ErrorResponse {
 async fn get_weather(
     State(state): State<AppState>,
     Query(query): Query<WeatherQuery>,
-) -> impl IntoResponse {
+) -> Result<Json<WeatherResponse>, (StatusCode, Json<ErrorResponse>)> {
     if query.station_id.trim().is_empty() {
-        return (
+        return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: "station_id is required".into(),
             }),
-        );
+        ));
     }
 
     let url = format!(
@@ -208,19 +208,23 @@ async fn get_weather(
         Ok(r) => r,
         Err(e) => {
             tracing::error!("WU request error: {:?}", e);
-            return (
+            return Err((
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse {
                     error: "Failed to reach Weather Underground API".into(),
                 }),
-            );
+            ));
         }
     };
 
     if !resp.status().is_success() {
         let status = resp.status();
-        tracing::warn!("WU non-success status {} for station {}", status, query.station_id);
-        return (
+        tracing::warn!(
+            "WU non-success status {} for station {}",
+            status,
+            query.station_id
+        );
+        return Err((
             StatusCode::BAD_GATEWAY,
             Json(ErrorResponse {
                 error: format!(
@@ -228,31 +232,31 @@ async fn get_weather(
                     status, query.station_id
                 ),
             }),
-        );
+        ));
     }
 
     let parsed: PwsApiResponse = match resp.json().await {
         Ok(p) => p,
         Err(e) => {
             tracing::error!("WU JSON parse error: {:?}", e);
-            return (
+            return Err((
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse {
                     error: "Failed to parse Weather Underground response".into(),
                 }),
-            );
+            ));
         }
     };
 
     let obs = match parsed.observations.into_iter().next() {
         Some(o) => o,
         None => {
-            return (
+            return Err((
                 StatusCode::NOT_FOUND,
                 Json(ErrorResponse {
                     error: "No observations returned for this station.".into(),
                 }),
-            )
+            ))
         }
     };
 
@@ -268,6 +272,5 @@ async fn get_weather(
         neighborhood: obs.neighborhood,
     };
 
-    (StatusCode::OK, Json(res))
+    Ok(Json(res))
 }
-
