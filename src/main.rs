@@ -5,9 +5,11 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use http::Method;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{env, net::SocketAddr};
+use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Clone)]
@@ -18,26 +20,32 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    // Logging
+    // Initialize logging
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // For CI / local dev you can temporarily swap to `unwrap_or_else` with a dummy;
-    // for real deploys, keep this as expect so misconfig fails fast.
-    let wu_api_key = env::var("WU_API_KEY")
-        .unwrap_or_else(|_| "DUMMY_KEY_SET_IN_LOCAL_DEV".to_string());
+    // Require a real WU_API_KEY for runtime
+    let wu_api_key =
+        env::var("WU_API_KEY").expect("WU_API_KEY environment variable must be set");
 
     let state = AppState {
         client: Client::new(),
         wu_api_key,
     };
 
+    // CORS: allow GET from any origin (tighten later if desired)
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET])
+        .allow_headers(Any);
+
     let app = Router::new()
         .route("/", get(index))
         .route("/api/weather", get(get_weather))
-        .with_state(state);
+        .with_state(state)
+        .layer(cors);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     tracing::info!("Listening on {}", addr);
@@ -47,7 +55,6 @@ async fn main() {
 }
 
 async fn index() -> Html<&'static str> {
-    // Minimal but dark UI; calls /api/weather
     Html(
         r#"<!doctype html>
 <html lang="en">
@@ -56,7 +63,7 @@ async fn index() -> Html<&'static str> {
   <title>PWS Weather Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { background:#050816; color:#e5e7eb; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; margin:0; padding:0; }
+    body { background:#050816; color:#e5e7eb; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:0; }
     .wrap { max-width:720px; margin:40px auto; padding:24px; background:#0b1020; border-radius:18px; box-shadow:0 18px 45px rgba(0,0,0,0.65); }
     h1 { font-size:1.9rem; margin-bottom:0.5rem; display:flex; gap:0.4rem; align-items:center; }
     h1 span.logo { font-size:1.6rem; }
@@ -76,8 +83,7 @@ async fn index() -> Html<&'static str> {
   <div class="wrap">
     <h1><span class="logo">🛰️</span> PWS Weather Viewer</h1>
     <p class="sub">
-      Enter a Weather Underground <strong>Station ID</strong> (e.g. <code>KCASANFR70</code>) to see live conditions
-      via the Weather Underground / PWS API.
+      Enter a Weather Underground <strong>Station ID</strong> (e.g. <code>KCASANFR70</code>) to see live conditions.
     </p>
 
     <label for="stationId">Station ID</label>
@@ -87,7 +93,7 @@ async fn index() -> Html<&'static str> {
     <div id="output"></div>
 
     <div class="meta">
-      Backend: Rust + Axum · Dockerized · CI/CD on GitHub Actions.
+      Backend: Rust + Axum · Dockerized · CI/CD via GitHub Actions.
     </div>
   </div>
 
@@ -209,9 +215,9 @@ async fn get_weather(
     }
 
     let url = format!(
-        "https://api.weather.com/v2/pws/observations/current?stationId={}&format=json&units=e&apiKey={}",
-        query.station_id,
-        state.wu_api_key,
+        "https://api.weather.com/v2/pws/observations/current\
+         ?stationId={}&format=json&units=e&apiKey={}",
+        query.station_id, state.wu_api_key
     );
 
     let resp = match state.client.get(&url).send().await {
@@ -227,33 +233,67 @@ async fn get_weather(
         }
     };
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        tracing::warn!(
-            "WU non-success status {} for station {}",
-            status,
-            query.station_id
-        );
+    let status = resp.status();
 
+    if !status.is_success() {
+        let code = status.as_u16();
+        let msg = format!(
+            "Weather Underground API error (HTTP {}) for station {}",
+            code, query.station_id
+        );
+        tracing::warn!("{msg}");
+        return Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: msg })));
+    }
+
+    let body = match resp.text().await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!("WU body read error: {:?}", e);
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: "Failed to read Weather Underground response body".into(),
+                }),
+            ));
+        }
+    };
+
+    let trimmed = body.trim();
+
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("data expired")
+        || trimmed.eq_ignore_ascii_case("no data")
+    {
+        tracing::warn!(
+            "No current observation data for station {} (empty/Data Expired). Raw: {:?}",
+            query.station_id,
+            trimmed
+        );
         return Err((
-            StatusCode::BAD_GATEWAY,
+            StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 error: format!(
-                    "Weather Underground API error (HTTP {}) for station {}",
-                    status, query.station_id
+                    "No current observation data available for station {}.",
+                    query.station_id
                 ),
             }),
         ));
     }
 
-    let parsed: PwsApiResponse = match resp.json().await {
+    let parsed: PwsApiResponse = match serde_json::from_str(trimmed) {
         Ok(p) => p,
         Err(e) => {
-            tracing::error!("WU JSON parse error: {:?}", e);
+            tracing::error!(
+                "WU JSON parse error for station {}: {:?}. Raw body: {}",
+                query.station_id,
+                e,
+                trimmed
+            );
             return Err((
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse {
-                    error: "Failed to parse Weather Underground response".into(),
+                    error: "Weather Underground returned an unexpected response format."
+                        .into(),
                 }),
             ));
         }
@@ -262,10 +302,18 @@ async fn get_weather(
     let obs = match parsed.observations.into_iter().next() {
         Some(o) => o,
         None => {
+            tracing::warn!(
+                "No observations array entries for station {}. Raw body: {}",
+                query.station_id,
+                trimmed
+            );
             return Err((
                 StatusCode::NOT_FOUND,
                 Json(ErrorResponse {
-                    error: "No observations returned for this station.".into(),
+                    error: format!(
+                        "No observations returned for station {}.",
+                        query.station_id
+                    ),
                 }),
             ));
         }
