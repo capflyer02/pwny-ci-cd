@@ -77,10 +77,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download all artifacts
+      - name: Download release binary artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: pwny-ci-cd-*
           merge-multiple: true
 
       - name: Create GitHub Release
