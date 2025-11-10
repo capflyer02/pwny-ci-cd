@@ -1,10 +1,11 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{Html, IntoResponse},
+    response::Html,
     routing::get,
     Json, Router,
 };
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{env, net::SocketAddr};
@@ -159,14 +160,22 @@ struct PwsObservation {
 
 #[derive(Deserialize)]
 struct Imperial {
+    #[serde(rename = "temp")]
     temp: f64,
+    #[serde(rename = "humidity")]
     humidity: f64,
-    windSpeed: f64,
-    windGust: f64,
-    windDir: f64,
+    #[serde(rename = "windSpeed")]
+    wind_speed: f64,
+    #[serde(rename = "windGust")]
+    wind_gust: f64,
+    #[serde(rename = "windDir")]
+    wind_dir: f64,
+    #[serde(rename = "pressure")]
     pressure: f64,
-    precipRate: f64,
+    #[serde(rename = "precipRate")]
+    precip_rate: f64,
 }
+
 
 #[derive(Serialize)]
 struct WeatherResponse {
@@ -176,10 +185,12 @@ struct WeatherResponse {
     humidity_pct: f64,
     wind_mph: f64,
     wind_gust_mph: f64,
+    wind_dir_deg: f64,
     pressure_in: f64,
     precip_in_hr: f64,
     neighborhood: Option<String>,
 }
+
 
 #[derive(Serialize)]
 struct ErrorResponse {
@@ -260,17 +271,16 @@ async fn get_weather(
         }
     };
 
-    let res = WeatherResponse {
-        station_id: obs.station_id,
-        observed_at: obs.obs_time_local,
-        temperature_f: obs.imperial.temp,
-        humidity_pct: obs.imperial.humidity,
-        wind_mph: obs.imperial.windSpeed,
-        wind_gust_mph: obs.imperial.windGust,
-        pressure_in: obs.imperial.pressure,
-        precip_in_hr: obs.imperial.precipRate,
-        neighborhood: obs.neighborhood,
-    };
+let res = WeatherResponse {
+    station_id: obs.station_id,
+    observed_at: obs.obs_time_local,
+    temperature_f: obs.imperial.temp,
+    humidity_pct: obs.imperial.humidity,
+    wind_mph: obs.imperial.wind_speed,
+    wind_gust_mph: obs.imperial.wind_gust,
+    wind_dir_deg: obs.imperial.wind_dir,
+    pressure_in: obs.imperial.pressure,
+    precip_in_hr: obs.imperial.precip_rate,
+    neighborhood: obs.neighborhood,
+};
 
-    Ok(Json(res))
-}
