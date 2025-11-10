@@ -5,7 +5,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use http::Method;
+use axum::http::Method;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{env, net::SocketAddr};
@@ -20,13 +20,13 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    // Initialize logging
+    // Logging
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // Require a real WU_API_KEY for runtime
+    // Require a real key at runtime (fail fast if missing)
     let wu_api_key =
         env::var("WU_API_KEY").expect("WU_API_KEY environment variable must be set");
 
@@ -35,7 +35,7 @@ async fn main() {
         wu_api_key,
     };
 
-    // CORS: allow GET from any origin (tighten later if desired)
+    // CORS (you can tighten allow_origin later)
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods([Method::GET])
@@ -161,6 +161,10 @@ struct PwsObservation {
     #[serde(rename = "obsTimeLocal")]
     obs_time_local: String,
     neighborhood: Option<String>,
+    #[serde(rename = "humidity")]
+    humidity: Option<f64>,
+    #[serde(rename = "winddir")]
+    wind_dir: Option<f64>,
     imperial: Imperial,
 }
 
@@ -168,14 +172,10 @@ struct PwsObservation {
 struct Imperial {
     #[serde(rename = "temp")]
     temp: f64,
-    #[serde(rename = "humidity")]
-    humidity: f64,
     #[serde(rename = "windSpeed")]
     wind_speed: f64,
     #[serde(rename = "windGust")]
     wind_gust: f64,
-    #[serde(rename = "windDir")]
-    wind_dir: f64,
     #[serde(rename = "pressure")]
     pressure: f64,
     #[serde(rename = "precipRate")]
@@ -323,10 +323,10 @@ async fn get_weather(
         station_id: obs.station_id,
         observed_at: obs.obs_time_local,
         temperature_f: obs.imperial.temp,
-        humidity_pct: obs.imperial.humidity,
+        humidity_pct: obs.humidity.unwrap_or_default(),
         wind_mph: obs.imperial.wind_speed,
         wind_gust_mph: obs.imperial.wind_gust,
-        wind_dir_deg: obs.imperial.wind_dir,
+        wind_dir_deg: obs.wind_dir.unwrap_or_default(),
         pressure_in: obs.imperial.pressure,
         precip_in_hr: obs.imperial.precip_rate,
         neighborhood: obs.neighborhood,
