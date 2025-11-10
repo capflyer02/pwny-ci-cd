@@ -90,6 +90,7 @@ jobs:
           files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WU_API_KEY: ${{ secrets.WU_API_KEY }}
 
   docker-build-and-push:
     needs: build-and-test
