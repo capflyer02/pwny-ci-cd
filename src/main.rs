@@ -176,7 +176,6 @@ struct Imperial {
     precip_rate: f64,
 }
 
-
 #[derive(Serialize)]
 struct WeatherResponse {
     station_id: String,
@@ -191,11 +190,102 @@ struct WeatherResponse {
     neighborhood: Option<String>,
 }
 
-
 #[derive(Serialize)]
 struct ErrorResponse {
     error: String,
 }
+
+async fn get_weather(
+    State(state): State<AppState>,
+    Query(query): Query<WeatherQuery>,
+) -> Result<Json<WeatherResponse>, (StatusCode, Json<ErrorResponse>)> {
+    if query.station_id.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "station_id is required".into(),
+            }),
+        ));
+    }
+
+    let url = format!(
+        "https://api.weather.com/v2/pws/observations/current?stationId={}&format=json&units=e&apiKey={}",
+        query.station_id, state.wu_api_key
+    );
+
+    let resp = match state.client.get(&url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("WU request error: {:?}", e);
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: "Failed to reach Weather Underground API".into(),
+                }),
+            ));
+        }
+    };
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        tracing::warn!(
+            "WU non-success status {} for station {}",
+            status,
+            query.station_id
+        );
+
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(ErrorResponse {
+                error: format!(
+                    "Weather Underground API error (HTTP {}) for station {}",
+                    status, query.station_id
+                ),
+            }),
+        ));
+    }
+
+    let parsed: PwsApiResponse = match resp.json().await {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("WU JSON parse error: {:?}", e);
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: "Failed to parse Weather Underground response".into(),
+                }),
+            ));
+        }
+    };
+
+    let obs = match parsed.observations.into_iter().next() {
+        Some(o) => o,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "No observations returned for this station.".into(),
+                }),
+            ));
+        }
+    };
+
+    let res = WeatherResponse {
+        station_id: obs.station_id,
+        observed_at: obs.obs_time_local,
+        temperature_f: obs.imperial.temp,
+        humidity_pct: obs.imperial.humidity,
+        wind_mph: obs.imperial.wind_speed,
+        wind_gust_mph: obs.imperial.wind_gust,
+        wind_dir_deg: obs.imperial.wind_dir,
+        pressure_in: obs.imperial.pressure,
+        precip_in_hr: obs.imperial.precip_rate,
+        neighborhood: obs.neighborhood,
+    };
+
+    Ok(Json(res))
+}
+
 
 async fn get_weather(
     State(state): State<AppState>,
