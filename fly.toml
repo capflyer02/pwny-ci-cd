@@ -1,0 +1,12 @@
+app = "pwny-weather"        # or whatever you used with `fly launch`
+primary_region = "dfw"      # pick something near you (e.g. dfw, iad, ord, etc.)
+
+[build]
+  dockerfile = "./Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
