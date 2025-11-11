@@ -1,0 +1,20 @@
+%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 757 >> stream
+BT /F1 9 Tf 50 750 Td (Pwny CI/CD Guide: Rust + Axum + Weather Underground + Docker + GitHub Actions + Fly.io  # 1.\nOverview  This project demonstrates an end-to-end automated DevOps pipeline for a Rust-based web\napplication using Axum. It integrates build, test, release, and deployment via GitHub Actions,\nDocker, and Fly.io.  **Core Stack** - Rust \(Axum\) for web server and API routing - Weather\nUnderground API for live weather data - Multi-stage Docker builds for optimized images - GitHub\nActions for CI/CD automation - Fly.io for global hosting and scaling  When you push a tag like\n`v1.0.0`, the pipeline automatically builds, tests, releases, and deploys the latest version.  ...\n\(remaining content omitted for brevity in preview\)) Tj ET
+endstream endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000060 00000 n 
+0000000112 00000 n 
+0000000234 00000 n 
+0000000340 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+400
+%%EOF
