@@ -81,19 +81,19 @@ async fn index() -> Html<&'static str> {
 </head>
 <body>
   <div class="wrap">
-    <h1><span class="logo">🛰️</span> PWS Weather Viewer</h1>
+    <h1><span class="logo">🛰️</span> C@n1p's Wunderground PWS checker</h1>
     <p class="sub">
-      Enter a Weather Underground <strong>Station ID</strong> (e.g. <code>KCASANFR70</code>) to see live conditions.
+      Enter a Weather Underground <strong>Station ID</strong> (e.g. <code>KTXSANAN953</code>) to see live conditions.
     </p>
 
     <label for="stationId">Station ID</label>
-    <input id="stationId" placeholder="Your station ID (e.g. KXXXXXXX)" />
+    <input id="stationId" placeholder="Your station ID (e.g. KTXSANAN953)" />
     <button id="fetchBtn">Get Current Conditions</button>
 
     <div id="output"></div>
 
     <div class="meta">
-      Backend: Rust + Axum · Dockerized · CI/CD via GitHub Actions.
+      Backend: Rust + Axum · Dockerized · CI/CD via GitHub Actions. deployed on fly.io  Designed by C@TN1P
     </div>
   </div>
 
